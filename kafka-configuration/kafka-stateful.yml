@@ -1,0 +1,61 @@
+apiVersion: apps/v1beta1
+kind: StatefulSet
+metadata:
+  name: kafka
+  namespace: kafka
+spec:
+  serviceName: "kafka-broker"
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app: kafka
+    spec:
+      terminationGracePeriodSeconds: 10
+      hostNetwork: true
+      containers:
+      - name: broker
+        image: <DOCKER-IMAGE>
+        imagePullPolicy: Always
+        env:
+        - name: ADVERTISED_HOST_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        - name: ADVERTISED_PORT
+          value: "30092"
+        - name: KAFKA_HEAP_OPTS
+          value: "-Xms4g -Xmx4g -XX:PermSize=48m -XX:MaxPermSize=48m -XX:+UseG1GC -XX:MaxGCPauseMillis=20 -XX:InitiatingHeapOccupancyPercent=35"
+        - name: KAFKA_JMX_OPTS
+          value: "-Dcom.sun.management.jmxremote=true -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Djava.rmi.server.hostname=$(ADVERTISED_HOST_NAME) -Djava.net.preferIPv4Stack=true"
+        - name: JMX_PORT
+          value: "9999"
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        command:
+        - sh
+        - -c
+        - "./generateConfig.sh && ./bin/kafka-server-start.sh config/server.properties"
+        volumeMounts:
+        - name: data
+          mountPath: /opt/kafka/data
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+      namespace: kafka
+      annotations:
+        volume.beta.kubernetes.io/storage-class: "slow"
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      selector:
+        matchLabels:
+          app: "kafka"
+      resources:
+        requests:
+          storage: 10Gi

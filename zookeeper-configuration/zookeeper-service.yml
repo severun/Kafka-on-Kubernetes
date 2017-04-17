@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: zookeeper-headless
+  namespace: zookeeper
+  labels:
+    app: zookeeper-headless
+spec:
+  ports:
+  - port: 2181
+    name: client
+  - port: 2888
+    name: server
+  - port: 3888
+    name: leader-election
+  clusterIP: None
+  selector:
+    app: zookeeper
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: zookeeper
+  namespace: zookeeper
+spec:
+  type: NodePort
+  ports:
+  - name: zookeeper-client
+    port: 2181
+    nodePort: 32181
+  selector:
+    app: zookeeper

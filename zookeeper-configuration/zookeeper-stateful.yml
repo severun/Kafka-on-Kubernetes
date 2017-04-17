@@ -1,0 +1,124 @@
+apiVersion: apps/v1beta1
+kind: StatefulSet
+metadata:
+  name: zookeeper
+  namespace: zookeeper
+spec:
+  serviceName: zookeeper-headless
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app: zookeeper
+      annotations:
+        pod.alpha.kubernetes.io/initialized: "true"
+        scheduler.alpha.kubernetes.io/affinity: >
+            {
+              "podAntiAffinity": {
+                "requiredDuringSchedulingRequiredDuringExecution": [{
+                  "labelSelector": {
+                    "matchExpressions": [{
+                      "key": "app",
+                      "operator": "In",
+                      "values": ["zookeeper-headless"]
+                    }]
+                  },
+                  "topologyKey": "kubernetes.io/hostname"
+                }]
+              }
+            }
+    spec:
+      containers:
+      - name: k8szookeeper
+        imagePullPolicy: Always
+        image: <DOCKER-IMAGE>
+        resources:
+          requests:
+            memory: "4Gi"
+            cpu: "1"
+        ports:
+        - containerPort: 2181
+          name: client
+        - containerPort: 2888
+          name: server
+        - containerPort: 3888
+          name: leader-election
+        env:
+        - name : ZK_ENSEMBLE
+          valueFrom:
+            configMapKeyRef:
+              name: zookeeper-config
+              key: ensemble
+        - name : ZK_HEAP_SIZE
+          valueFrom:
+            configMapKeyRef:
+                name: zookeeper-config
+                key: jvm.heap
+        - name : ZK_TICK_TIME
+          valueFrom:
+            configMapKeyRef:
+                name: zookeeper-config
+                key: tick
+        - name : ZK_INIT_LIMIT
+          valueFrom:
+            configMapKeyRef:
+                name: zookeeper-config
+                key: init
+        - name : ZK_SYNC_LIMIT
+          valueFrom:
+            configMapKeyRef:
+                name: zookeeper-config
+                key: tick
+        - name : ZK_MAX_CLIENT_CNXNS
+          valueFrom:
+            configMapKeyRef:
+                name: zookeeper-config
+                key: client.cnxns
+        - name: ZK_SNAP_RETAIN_COUNT
+          valueFrom:
+            configMapKeyRef:
+                name: zookeeper-config
+                key: snap.retain
+        - name: ZK_PURGE_INTERVAL
+          valueFrom:
+            configMapKeyRef:
+                name: zookeeper-config
+                key: purge.interval
+        - name: ZK_CLIENT_PORT
+          value: "2181"
+        - name: ZK_SERVER_PORT
+          value: "2888"
+        - name: ZK_ELECTION_PORT
+          value: "3888"
+        command: ["/bin/sh"]
+        args: ["-c", "zkGenConfig.sh && zkServer.sh start-foreground"]
+        readinessProbe:
+          exec:
+            command:
+            - "zkOk.sh"
+          initialDelaySeconds: 15
+          timeoutSeconds: 5
+        livenessProbe:
+          exec:
+            command:
+            - "zkOk.sh"
+          initialDelaySeconds: 15
+          timeoutSeconds: 5
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/zookeeper
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+      namespace: zookeeper
+      annotations:
+        volume.beta.kubernetes.io/storage-class: "slow"
+    spec:
+      accessModes: 
+      - ReadWriteOnce
+      selector:
+        matchLabels:
+          app: "zookeeper"
+      resources:
+        requests:
+          storage: 10Gi

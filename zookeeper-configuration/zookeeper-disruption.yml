@@ -1,0 +1,10 @@
+apiVersion: policy/v1beta1
+kind: PodDisruptionBudget
+metadata:
+  name: zookeeper-disruption
+  namespace: zookeeper
+spec:
+  selector:
+    matchLabels:
+      app: zookeeper
+  minAvailable: 2
